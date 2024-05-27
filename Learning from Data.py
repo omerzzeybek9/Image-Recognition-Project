@@ -99,7 +99,7 @@ def create_pairs(images, labels, num_pairs=16):
 
 # Training loop for the contrastive loss
 losses = []
-num_epochs_contrastive = 30
+num_epochs_contrastive = 10
 for epoch in range(num_epochs_contrastive):
     embedding_resnet.train()
     running_loss = 0.0
@@ -124,7 +124,6 @@ for epoch in range(num_epochs_contrastive):
     print(f"Epoch: {epoch}, Contrastive Loss: {avg_loss:.4f}")
     losses.append(avg_loss)
 
-
 # Plotting the loss
 sns.lineplot(x=range(len(losses)), y=losses)
 plt.xlabel('Epochs')
@@ -135,7 +134,7 @@ plt.show()
 # Adding linear classifier on top of the Embedding Model with BatchNorm
 classifier = nn.Sequential(
     nn.Linear(in_features=128, out_features=512),
-    nn.BatchNorm1d(512),  # Adding Batch Normalization
+    nn.BatchNorm1d(512),
     nn.ReLU(),
     nn.Linear(in_features=512, out_features=10)
 ).to(device)
@@ -164,11 +163,11 @@ criterion_classifier = nn.CrossEntropyLoss()
 optimizer_classifier = optim.SGD(full_model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0005)
 scheduler = optim.lr_scheduler.StepLR(optimizer_classifier, step_size=7, gamma=0.1)
 
+# Training loop for the classifier
 num_epochs_classifier = 30
 loss1 = []
 accuracy = []
 
-# Training loop for the classifier
 for epoch in range(num_epochs_classifier):
     full_model.train()
     running_loss = 0.0
@@ -210,4 +209,47 @@ sns.lineplot(x=range(len(accuracy)), y=accuracy)
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.title("Classifier Accuracy Change in Every Epoch")
+plt.show()
+
+# Test Phase
+epoch_test = 10
+for epoch in range(epoch_test):
+    full_model.eval()
+    test_loss = 0.0
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in loader_test:
+            images, labels = images.to(device), labels.to(device)
+            outputs = full_model(images)
+            loss = criterion_classifier(outputs, labels)
+
+            test_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    avg_test_loss = test_loss / len(loader_test)
+    test_acc = 100 * correct / total
+
+    print(f"Epoch: {epoch},Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_acc:.2f}%")
+
+# Plotting the train and test loss
+plt.figure(figsize=(12, 6))
+sns.lineplot(x=range(len(train_losses)), y=train_losses, label='Train Loss')
+sns.lineplot(x=range(len(test_losses)), y=test_losses, label='Test Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title("Loss Change in Every Epoch")
+plt.legend()
+plt.show()
+
+# Plotting the train and test accuracy
+plt.figure(figsize=(12, 6))
+sns.lineplot(x=range(len(train_accuracies)), y=train_accuracies, label='Train Accuracy')
+sns.lineplot(x=range(len(test_accuracies)), y=test_accuracies, label='Test Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.title("Accuracy Change")
+plt.legend()
 plt.show()
