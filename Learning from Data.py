@@ -45,7 +45,6 @@ sampler = torch.utils.data.WeightedRandomSampler(sample_weights, len(sample_weig
 loader_train = torch.utils.data.DataLoader(trainset, batch_size=64, sampler=sampler, num_workers=8)
 loader_test = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=8)
 
-
 # Define the embedding model with dropout
 class EmbeddingModel(nn.Module):
     def __init__(self, base_model, embedding_size):
@@ -62,7 +61,6 @@ class EmbeddingModel(nn.Module):
         x = self.fc(x)
         x = self.relu(x)
         return x
-
 
 # Load pretrained ResNet18 and create embedding model
 resnet = torchvision.models.resnet18(pretrained=True)
@@ -81,10 +79,8 @@ class ContrastiveLoss(nn.Module):
                                       label * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
         return loss_contrastive
 
-
 criterion_contrastive = ContrastiveLoss()
 optimizer_contrastive = optim.Adam(embedding_resnet.parameters(), lr=0.00001)
-
 
 # Function to create pairs
 def create_pairs(images, labels, num_pairs=16):
@@ -96,10 +92,9 @@ def create_pairs(images, labels, num_pairs=16):
         pairs.append((img1, img2, label))
     return pairs
 
-
 # Training loop for the contrastive loss
 losses = []
-num_epochs_contrastive = 10
+num_epochs_contrastive = 20
 for epoch in range(num_epochs_contrastive):
     embedding_resnet.train()
     running_loss = 0.0
@@ -151,10 +146,9 @@ class FullModel(nn.Module):
         x = self.classifier(x)
         return x
 
-
 # Create full model
 full_model = FullModel(embedding_resnet, classifier).to(device)
-
+# %%
 # Fine-tuning additional layers
 for param in full_model.embedding_model.base_model[-3:].parameters():
     param.requires_grad = True
@@ -164,7 +158,7 @@ optimizer_classifier = optim.SGD(full_model.parameters(), lr=0.01, momentum=0.9,
 scheduler = optim.lr_scheduler.StepLR(optimizer_classifier, step_size=7, gamma=0.1)
 
 # Training loop for the classifier
-num_epochs_classifier = 30
+num_epochs_classifier = 10
 loss1 = []
 accuracy = []
 
@@ -212,6 +206,8 @@ plt.title("Classifier Accuracy Change in Every Epoch")
 plt.show()
 
 # Test Phase
+test_losses = []
+test_accuracy = []
 epoch_test = 10
 for epoch in range(epoch_test):
     full_model.eval()
@@ -230,24 +226,24 @@ for epoch in range(epoch_test):
             correct += (predicted == labels).sum().item()
 
     avg_test_loss = test_loss / len(loader_test)
+    test_losses.append(avg_test_loss)
     test_acc = 100 * correct / total
+    test_accuracy.append(test_acc)
 
     print(f"Epoch: {epoch},Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_acc:.2f}%")
 
 # Plotting the train and test loss
 plt.figure(figsize=(12, 6))
-sns.lineplot(x=range(len(train_losses)), y=train_losses, label='Train Loss')
 sns.lineplot(x=range(len(test_losses)), y=test_losses, label='Test Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title("Loss Change in Every Epoch")
+plt.title("Test Loss Change in Every Epoch")
 plt.legend()
 plt.show()
 
 # Plotting the train and test accuracy
 plt.figure(figsize=(12, 6))
-sns.lineplot(x=range(len(train_accuracies)), y=train_accuracies, label='Train Accuracy')
-sns.lineplot(x=range(len(test_accuracies)), y=test_accuracies, label='Test Accuracy')
+sns.lineplot(x=range(len(test_accuracy)), y=test_accuracy, label='Test Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.title("Accuracy Change")
